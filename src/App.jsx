@@ -87,7 +87,7 @@ function DashboardShell() {
   return (
     <CurrencyProvider>
       <ToastProvider>
-        <div className="flex h-screen overflow-hidden bg-surface-950 relative">
+        <div className="flex h-screen overflow-hidden bg-slate-950 relative">
           {/* Background Orbs */}
           <div className="gradient-orb animate-pulse-glow" style={{ width: 420, height: 420, background: 'linear-gradient(135deg,#06b6d4,#8b5cf6)', top: -120, left: -120 }} />
           <div className="gradient-orb animate-pulse-glow" style={{ width: 320, height: 320, background: 'linear-gradient(135deg,#8b5cf6,#ec4899)', bottom: -80, right: -80, animationDelay: '2.5s' }} />
