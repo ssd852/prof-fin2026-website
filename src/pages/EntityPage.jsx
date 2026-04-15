@@ -8,15 +8,17 @@ import { SCHEMAS } from '../data/schemas';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { supabase } from '../supabaseClient';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 
 export default function EntityPage({ entityKey, store, onToggle }) {
   const schema = SCHEMAS[entityKey];
-  const data = store.getAll(entityKey);
   const printRef = useRef(null);
 
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [search, setSearch] = useState('');
@@ -24,6 +26,24 @@ export default function EntityPage({ entityKey, store, onToggle }) {
   const [pdfLoading, setPdfLoading] = useState(false);
   const { show } = useToast();
   const { fc } = useCurrency();
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const { data: fetchResult, error } = await supabase.from(entityKey).select('*');
+      if (error) throw error;
+      setData(fetchResult || []);
+    } catch (err) {
+      console.error(err);
+      show('خطأ في جلب البيانات', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [entityKey]);
   const { canAdd, canEdit, canDelete } = useAuth();
   const PP = 10;
 
@@ -40,21 +60,36 @@ export default function EntityPage({ entityKey, store, onToggle }) {
   const paged = filtered.slice((page - 1) * PP, page * PP);
   const visCols = schema.fields.filter((c) => !c.auto || c.key === 'vat_tax' || c.key === 'total_value');
 
-  const handleSubmit = (formData) => {
-    if (editItem) {
-      store.update(entityKey, editItem.id, formData);
-      show('تم التحديث بنجاح ✓');
-    } else {
-      store.add(entityKey, formData);
-      show('تمت الإضافة بنجاح ✓');
+  const handleSubmit = async (formData) => {
+    try {
+      if (editItem) {
+        const { error } = await supabase.from(entityKey).update(formData).eq('id', editItem.id);
+        if (error) throw error;
+        show('تم التحديث بنجاح ✓');
+      } else {
+        const { error } = await supabase.from(entityKey).insert([formData]);
+        if (error) throw error;
+        show('تمت الإضافة بنجاح ✓');
+      }
+      setModalOpen(false);
+      setEditItem(null);
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      show('حدث خطأ أثناء الحفظ', 'error');
     }
-    setModalOpen(false);
-    setEditItem(null);
   };
 
-  const handleDelete = (id) => {
-    store.remove(entityKey, id);
-    show('تم الحذف بنجاح ✓');
+  const handleDelete = async (id) => {
+    try {
+      const { error } = await supabase.from(entityKey).delete().eq('id', id);
+      if (error) throw error;
+      show('تم الحذف بنجاح ✓');
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      show('حدث خطأ أثناء الحذف', 'error');
+    }
   };
 
   const valField = schema.fields.find((f) => f.currency && !f.auto);
@@ -237,7 +272,14 @@ export default function EntityPage({ entityKey, store, onToggle }) {
             </tr>
           </thead>
           <tbody>
-            {paged.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={visCols.length + 1} className="text-center py-12">
+                  <Loader size={40} className="mx-auto mb-3 text-slate-500 opacity-30 animate-spin" />
+                  <p className="text-slate-400 font-medium">جاري التحميل...</p>
+                </td>
+              </tr>
+            ) : paged.length === 0 ? (
               <tr>
                 <td colSpan={visCols.length + 1} className="text-center py-12">
                   <Inbox size={40} className="mx-auto mb-3 text-slate-500 opacity-30" />
